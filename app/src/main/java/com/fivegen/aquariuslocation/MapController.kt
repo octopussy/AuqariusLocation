@@ -12,7 +12,7 @@ import org.osmdroid.views.overlay.Polyline
 
 class MapController(
     private val mapView: MapView,
-    private val locationsSource: Flow<List<Location>>,
+    private val locationsSource: Flow<List<AppLocation>>,
     private val scope: CoroutineScope
 ) : CoroutineScope by scope {
 
@@ -32,7 +32,7 @@ class MapController(
         }
     }
 
-    private fun updateMarkers(list: List<Location>) {
+    private fun updateMarkers(list: List<AppLocation>) {
         if (list.isEmpty()) return
         if (firstUpdate) {
             firstUpdate = false
@@ -44,6 +44,6 @@ class MapController(
     }
 }
 
-private fun Location.toGeo(): GeoPoint {
+private fun AppLocation.toGeo(): GeoPoint {
     return GeoPoint(this.latitude, this.longitude, this.altitude)
 }
