@@ -2,9 +2,10 @@ package com.fivegen.aquariuslocation
 
 import android.Manifest
 import android.annotation.SuppressLint
-import android.content.Intent
+import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Bundle
+import android.preference.PreferenceManager
 import android.util.Log
 import android.widget.Toast
 import androidx.activity.compose.setContent
@@ -14,30 +15,33 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.slideIn
 import androidx.compose.animation.slideOut
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.animateScrollBy
-import androidx.compose.foundation.gestures.scrollable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.OutlinedButton
-import androidx.compose.material.OutlinedTextField
-import androidx.compose.material.Text
+import androidx.compose.material.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.TextLayoutResult
-import androidx.compose.ui.text.android.TextLayout
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.lifecycleScope
 import com.fivegen.aquariuslocation.ui.theme.AquariusLocationTheme
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.launch
+import org.osmdroid.config.Configuration
+import org.osmdroid.views.MapView
 
 
 class MainActivity : AppCompatActivity() {
+
+    private lateinit var mapController: MapController
+    private lateinit var mapView: MapView
 
     private val permissions = arrayOf(
         Manifest.permission.ACCESS_FINE_LOCATION,
@@ -46,7 +50,7 @@ class MainActivity : AppCompatActivity() {
 
     private val requestPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { p ->
-            if (p.values.all { it == true }) {
+            if (p.values.all { it }) {
                 startLocationService()
             } else {
                 Toast.makeText(this, "We need permissions", Toast.LENGTH_SHORT).show()
@@ -59,11 +63,22 @@ class MainActivity : AppCompatActivity() {
 
         setContent {
             AquariusLocationTheme {
-                MainView(App.instance)
+                MainView(App.instance, mapView)
             }
         }
 
+        val ctx: Context = applicationContext
+        Configuration.getInstance().load(ctx, PreferenceManager.getDefaultSharedPreferences(ctx))
+
+        mapView = MapView(this)
+        mapController = MapController(mapView, App.instance.locationHistory, lifecycleScope)
+
         checkPermissions()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        mapView.onResume()
     }
 
     private fun startLocationService() {
@@ -88,48 +103,37 @@ class MainActivity : AppCompatActivity() {
 }
 
 @Composable
-fun MainView(app: App) {
-    var isSettingsVisible by remember { mutableStateOf(false) }
-    var log by remember { mutableStateOf("") }
+fun MainView(app: App, mapView: MapView) {
 
-    Column(modifier = Modifier.padding(16.dp)) {
-        val scrollState = rememberScrollState()
+    val coroutineScope = rememberCoroutineScope()
+    val scaffoldState = rememberScaffoldState()
 
-        OutlinedButton(onClick = { isSettingsVisible = true }) {
-            Text(text = "Settings")
-        }
+    Scaffold(scaffoldState = scaffoldState,
+        drawerContent = {
+            SettingsScreen(
+                logSource = app.recentLog,
+                onClose = {
+                    coroutineScope.launch {
+                        scaffoldState.drawerState.close()
+                    }
+                })
+        }) {
 
-        LaunchedEffect(app) {
-            app.recentLog.collect {
-                log += "$it\n"
-            }
-        }
-
-        Text(
-            modifier = Modifier
-                .weight(1f)
-                .verticalScroll(scrollState),
-            text = log,
-            fontSize = 12.sp,
-            onTextLayout = { l ->
-                Log.d("onTextLayout", l.toString())
-            }
-        )
-    }
-
-    AnimatedVisibility(visible = isSettingsVisible,
-        enter = slideIn { IntOffset(it.width, 0) },
-        exit = slideOut { IntOffset(it.width, 0) }
-    ) {
-        SettingsScreen(onClose = { settingsApplied ->
-            isSettingsVisible = false
-        })
+        AndroidView(modifier = Modifier.fillMaxSize(), factory = { context -> mapView })
     }
 }
 
 @Composable
-fun SettingsScreen(onClose: (settingsApplied: Boolean) -> Unit) {
+fun SettingsScreen(onClose: () -> Unit, logSource: Flow<LogMessage>) {
+    var log by remember { mutableStateOf("") }
     val storage = App.storage
+
+    LaunchedEffect(logSource) {
+        logSource.collect {
+            log += "$it\n"
+        }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -153,7 +157,7 @@ fun SettingsScreen(onClose: (settingsApplied: Boolean) -> Unit) {
         SettingsLineLong("setWaitPeriodGPS", setWaitPeriodGPS)
         SettingsLineLong("setWaitPeriodNetwork", setWaitPeriodNetwork)
 
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+        Row(modifier = Modifier.fillMaxWidth()) {
             OutlinedButton(onClick = {
                 storage.acceptableTimePeriod = acceptableTimePeriod.value
                 storage.requiredTimeInterval = requiredTimeInterval.value
@@ -162,15 +166,23 @@ fun SettingsScreen(onClose: (settingsApplied: Boolean) -> Unit) {
                 storage.setWaitPeriodGPS = setWaitPeriodGPS.value
                 storage.setWaitPeriodNetwork = setWaitPeriodNetwork.value
                 LocationService.resetLocationManager(context)
-                onClose(true)
+                onClose()
             }) {
                 Text(text = "Apply")
             }
-            Spacer(modifier = Modifier.width(8.dp))
-            OutlinedButton(onClick = { onClose(false) }) {
-                Text(text = "Close")
-            }
         }
+
+        Text(
+            modifier = Modifier
+                .weight(1f)
+                .verticalScroll(rememberScrollState()),
+            text = log,
+            fontSize = 12.sp,
+            onTextLayout = { l ->
+                Log.d("onTextLayout", l.toString())
+            }
+        )
+
     }
 }
 
