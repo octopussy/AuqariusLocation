@@ -24,7 +24,7 @@ class App : Application() {
     private val _locationHistory = MutableStateFlow<List<Location>>(emptyList())
     val locationHistory = _locationHistory.asStateFlow()
 
-    private val _recentLog = MutableSharedFlow<LogMessage>(replay = 50, onBufferOverflow = BufferOverflow.DROP_OLDEST)
+    private val _recentLog = MutableSharedFlow<LogMessage>(replay = Int.MAX_VALUE, onBufferOverflow = BufferOverflow.DROP_OLDEST)
     val recentLog = _recentLog.asSharedFlow()
 
     override fun onCreate() {

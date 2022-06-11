@@ -5,6 +5,7 @@ import android.annotation.SuppressLint
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Bundle
+import android.util.Log
 import android.widget.Toast
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -13,8 +14,12 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.slideIn
 import androidx.compose.animation.slideOut
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.animateScrollBy
+import androidx.compose.foundation.gestures.scrollable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.OutlinedButton
 import androidx.compose.material.OutlinedTextField
 import androidx.compose.material.Text
@@ -22,6 +27,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.text.android.TextLayout
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -32,15 +39,19 @@ import com.fivegen.aquariuslocation.ui.theme.AquariusLocationTheme
 
 class MainActivity : AppCompatActivity() {
 
-    private val permissions = arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)
+    private val permissions = arrayOf(
+        Manifest.permission.ACCESS_FINE_LOCATION,
+        Manifest.permission.ACCESS_COARSE_LOCATION
+    )
 
-    private val requestPermissionLauncher = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { p ->
-        if (p.values.all { it == true }) {
-            startLocationService()
-        } else {
-            Toast.makeText(this, "We need permissions", Toast.LENGTH_SHORT).show()
+    private val requestPermissionLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { p ->
+            if (p.values.all { it == true }) {
+                startLocationService()
+            } else {
+                Toast.makeText(this, "We need permissions", Toast.LENGTH_SHORT).show()
+            }
         }
-    }
 
     @SuppressLint("SetTextI18n")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -61,7 +72,12 @@ class MainActivity : AppCompatActivity() {
 
     private fun checkPermissions() {
         when {
-            permissions.all { ContextCompat.checkSelfPermission(this, it) == PackageManager.PERMISSION_GRANTED } -> {
+            permissions.all {
+                ContextCompat.checkSelfPermission(
+                    this,
+                    it
+                ) == PackageManager.PERMISSION_GRANTED
+            } -> {
                 startLocationService()
             }
             else -> {
@@ -74,31 +90,45 @@ class MainActivity : AppCompatActivity() {
 @Composable
 fun MainView(app: App) {
     var isSettingsVisible by remember { mutableStateOf(false) }
+    var log by remember { mutableStateOf("") }
+
     Column(modifier = Modifier.padding(16.dp)) {
+        val scrollState = rememberScrollState()
+
         OutlinedButton(onClick = { isSettingsVisible = true }) {
             Text(text = "Settings")
         }
 
-        var log by remember { mutableStateOf("") }
         LaunchedEffect(app) {
-            app.recentLog.collect { log += "$it\n" }
+            app.recentLog.collect {
+                log += "$it\n"
+            }
         }
 
-        Text(modifier = Modifier.weight(1f), text = log, fontSize = 12.sp)
+        Text(
+            modifier = Modifier
+                .weight(1f)
+                .verticalScroll(scrollState),
+            text = log,
+            fontSize = 12.sp,
+            onTextLayout = { l ->
+                Log.d("onTextLayout", l.toString())
+            }
+        )
     }
 
     AnimatedVisibility(visible = isSettingsVisible,
         enter = slideIn { IntOffset(it.width, 0) },
         exit = slideOut { IntOffset(it.width, 0) }
     ) {
-        SettingsScreen(onClose = {
+        SettingsScreen(onClose = { settingsApplied ->
             isSettingsVisible = false
         })
     }
 }
 
 @Composable
-fun SettingsScreen(onClose: () -> Unit) {
+fun SettingsScreen(onClose: (settingsApplied: Boolean) -> Unit) {
     val storage = App.storage
     Column(
         modifier = Modifier
@@ -132,12 +162,12 @@ fun SettingsScreen(onClose: () -> Unit) {
                 storage.setWaitPeriodGPS = setWaitPeriodGPS.value
                 storage.setWaitPeriodNetwork = setWaitPeriodNetwork.value
                 LocationService.resetLocationManager(context)
-                onClose()
+                onClose(true)
             }) {
                 Text(text = "Apply")
             }
             Spacer(modifier = Modifier.width(8.dp))
-            OutlinedButton(onClick = onClose) {
+            OutlinedButton(onClick = { onClose(false) }) {
                 Text(text = "Close")
             }
         }
@@ -167,7 +197,12 @@ private fun SettingsLineFloat(label: String, value: MutableState<Float>) {
 }
 
 @Composable
-private fun Line(label: String, value: String, keyboardType: KeyboardType, onChange: (String) -> Unit) {
+private fun Line(
+    label: String,
+    value: String,
+    keyboardType: KeyboardType,
+    onChange: (String) -> Unit
+) {
     OutlinedTextField(
         modifier = Modifier
             .fillMaxWidth()

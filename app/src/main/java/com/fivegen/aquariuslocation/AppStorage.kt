@@ -9,8 +9,8 @@ class AppStorage(context: Context) {
 
     private val prefs = context.getSharedPreferences("storage", Context.MODE_PRIVATE)
 
-    var acceptableTimePeriod by LongPref(prefs, 60 * 1000L)
-    var requiredTimeInterval by LongPref(prefs, 60 * 1000L)
+    var acceptableTimePeriod by LongPref(prefs, 5000L)
+    var requiredTimeInterval by LongPref(prefs, 5000L)
     var requiredDistanceInterval by LongPref(prefs, 0L)
     var acceptableAccuracy by FloatPref(prefs, 1f)
     var setWaitPeriodGPS by LongPref(prefs,20 * 1000L)

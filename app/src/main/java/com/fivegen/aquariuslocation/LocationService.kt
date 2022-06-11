@@ -22,6 +22,11 @@ class LocationService : Service() {
 
     override fun onBind(intent: Intent?): IBinder? = null
 
+    override fun onDestroy() {
+        super.onDestroy()
+        locationManager?.onDestroy()
+    }
+
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_RESET || locationManager == null) {
             setupLocationManager()
@@ -30,7 +35,7 @@ class LocationService : Service() {
     }
 
     private fun setupLocationManager() {
-        locationManager?.cancel()
+        locationManager?.onDestroy()
 
         App.instance.logD("-----------------------")
         App.instance.logD(" Setup location manager...")
@@ -102,7 +107,10 @@ class LocationService : Service() {
 
         override fun onLocationFailed(type: Int) {
             val t = when (type) {
-                FailType.TIMEOUT -> "TIMEOUT"
+                FailType.TIMEOUT -> {
+                    setupLocationManager()
+                    "TIMEOUT"
+                }
                 FailType.PERMISSION_DENIED -> "PERMISSION_DENIED"
                 FailType.NETWORK_NOT_AVAILABLE -> "NETWORK_NOT_AVAILABLE"
                 FailType.GOOGLE_PLAY_SERVICES_NOT_AVAILABLE -> "GOOGLE_PLAY_SERVICES_NOT_AVAILABLE"
