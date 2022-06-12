@@ -1,12 +1,17 @@
 package com.fivegen.aquariuslocation
 
 import android.annotation.SuppressLint
-import android.app.Service
+import android.app.*
 import android.content.Context
 import android.content.Intent
+import android.content.Intent.ACTION_SHUTDOWN
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.location.Location
+import android.os.Build
 import android.os.Bundle
 import android.os.IBinder
+import androidx.core.app.NotificationCompat
 import com.yayandroid.locationmanager.LocationManager
 import com.yayandroid.locationmanager.configuration.DefaultProviderConfiguration
 import com.yayandroid.locationmanager.configuration.GooglePlayServicesConfiguration
@@ -18,20 +23,106 @@ import com.yayandroid.locationmanager.listener.LocationListener
 
 class LocationService : Service() {
 
+    companion object {
+        private const val ACTION_RESET = "reset"
+        private const val ACTION_SHUTDOWN_SERVICE = "shutdown"
+        private const val NOTIFICATION_ID = 723
+        private const val CHANNEL_ID = "default_channel"
+
+        fun start(context: Context) {
+            context.startForegroundService(Intent(context, LocationService::class.java))
+        }
+
+        fun resetLocationManager(context: Context) {
+            context.startService(Intent(context, LocationService::class.java).apply {
+                action = ACTION_RESET
+            })
+        }
+
+        fun stop(context: Context) {
+            context.startService(Intent(context, LocationService::class.java).apply {
+                action = ACTION_SHUTDOWN_SERVICE
+            })
+        }
+    }
+
     private var locationManager: LocationManager? = null
+
+    private val notificationManager by lazy { this.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager }
+
+    private val notificationBuilder by lazy {
+        NotificationCompat.Builder(this, CHANNEL_ID).apply {
+            val intentMainLanding = Intent(this@LocationService, MainActivity::class.java)
+            val pendingIntent = PendingIntent.getActivity(this@LocationService, 0,
+                intentMainLanding, PendingIntent.FLAG_IMMUTABLE)
+
+            val iconNotification = BitmapFactory.decodeResource(resources, R.mipmap.ic_launcher)
+
+            val shutdownIntent = MainActivity.getShutdownIntent(this@LocationService)
+            val pendingShutdownIntent = PendingIntent.getActivity(this@LocationService, 0,
+                shutdownIntent, PendingIntent.FLAG_IMMUTABLE)
+
+            setContentTitle(StringBuilder(resources.getString(R.string.app_name)).append(" service is running").toString())
+                .setTicker(StringBuilder(resources.getString(R.string.app_name)).append("service is running").toString())
+                .setContentText("Waiting location")
+                .setSmallIcon(org.osmdroid.library.R.drawable.ic_menu_compass)
+                .setPriority(NotificationCompat.PRIORITY_LOW)
+                .setWhen(0)
+                .setOnlyAlertOnce(true)
+                .setContentIntent(pendingIntent)
+                .setOngoing(true)
+                .addAction(
+                    org.osmdroid.library.R.drawable.ic_menu_compass, "Shutdown",
+                    pendingShutdownIntent
+                )
+            if (iconNotification != null) {
+                setLargeIcon(Bitmap.createScaledBitmap(iconNotification, 128, 128, false))
+            }
+            color = resources.getColor(R.color.purple_200)
+        }
+    }
 
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onDestroy() {
         super.onDestroy()
+        App.instance.logD("Location service stopped...")
         locationManager?.onDestroy()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent?.action == ACTION_SHUTDOWN_SERVICE) {
+            stopForeground(true)
+            stopSelf()
+            return START_NOT_STICKY
+        }
+
+        makeNotificationAndStartForeground()
+
         if (intent?.action == ACTION_RESET || locationManager == null) {
             setupLocationManager()
         }
         return START_STICKY
+    }
+
+    private fun makeNotificationAndStartForeground() {
+        createNotificationChannel()
+        startForeground(NOTIFICATION_ID, notificationBuilder.build())
+    }
+
+    private fun createNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            notificationManager.createNotificationChannelGroup(NotificationChannelGroup("location_group", "Location"))
+            val notificationChannel = NotificationChannel(CHANNEL_ID, "Service Notifications", NotificationManager.IMPORTANCE_MIN)
+            notificationChannel.enableLights(false)
+            notificationChannel.lockscreenVisibility = Notification.VISIBILITY_PUBLIC
+            notificationManager.createNotificationChannel(notificationChannel)
+        }
+    }
+
+    private fun updateNotification(loc: Location) {
+        val notification = notificationBuilder.setContentText(loc.formatLanLon()).build()
+        notificationManager.notify(NOTIFICATION_ID, notification)
     }
 
     private fun setupLocationManager() {
@@ -101,6 +192,7 @@ class LocationService : Service() {
         @SuppressLint("SetTextI18n")
         override fun onLocationChanged(location: Location?) {
             if (location != null) {
+                updateNotification(location)
                 App.instance.publishCurrentLocation(location)
             }
         }
@@ -137,20 +229,6 @@ class LocationService : Service() {
 
         override fun onProviderDisabled(provider: String?) {
             App.instance.logD("onProviderDisabled $provider")
-        }
-    }
-
-    companion object {
-        private const val ACTION_RESET = "reset"
-
-        fun start(context: Context) {
-            context.startService(Intent(context, LocationService::class.java))
-        }
-
-        fun resetLocationManager(context: Context) {
-            context.startService(Intent(context, LocationService::class.java).apply {
-                action = ACTION_RESET
-            })
         }
     }
 

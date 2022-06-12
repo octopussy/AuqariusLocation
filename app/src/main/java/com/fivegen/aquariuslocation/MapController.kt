@@ -39,7 +39,8 @@ class MapController(
             mapView.controller.animateTo(list.last().toGeo(), 19.0, 10)
         }
 
-        pathOverlay.setPoints(list.map { it.toGeo() })
+        val map = list.map { it.toGeo() }
+        pathOverlay.setPoints(map)
         positionMarker.position = list.last().toGeo()
     }
 }

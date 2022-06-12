@@ -3,6 +3,7 @@ package com.fivegen.aquariuslocation
 import android.content.Context
 import android.content.SharedPreferences
 import androidx.core.content.edit
+import kotlin.reflect.KClass
 import kotlin.reflect.KProperty
 
 class AppStorage(context: Context) {

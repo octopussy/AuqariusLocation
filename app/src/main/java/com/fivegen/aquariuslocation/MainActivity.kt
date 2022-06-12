@@ -3,6 +3,7 @@ package com.fivegen.aquariuslocation
 import android.Manifest
 import android.annotation.SuppressLint
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Bundle
 import android.preference.PreferenceManager
@@ -11,21 +12,19 @@ import android.widget.Toast
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.slideIn
-import androidx.compose.animation.slideOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -39,6 +38,15 @@ import org.osmdroid.views.MapView
 
 
 class MainActivity : AppCompatActivity() {
+
+    companion object {
+
+        private const val ACTION_SHUTDOWN_SERVICE = "shutdown"
+
+        fun getShutdownIntent(context: Context) = Intent(context, MainActivity::class.java).apply {
+            action = ACTION_SHUTDOWN_SERVICE
+        }
+    }
 
     private lateinit var mapController: MapController
     private lateinit var mapView: MapView
@@ -61,6 +69,11 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        handleShutdownIntent(intent)
+        if (isFinishing) {
+            return
+        }
+
         setContent {
             AquariusLocationTheme {
                 MainView(App.instance, mapView)
@@ -76,9 +89,21 @@ class MainActivity : AppCompatActivity() {
         checkPermissions()
     }
 
+    override fun onNewIntent(intent: Intent?) {
+        super.onNewIntent(intent)
+        handleShutdownIntent(intent)
+    }
+
     override fun onResume() {
         super.onResume()
         mapView.onResume()
+    }
+
+    private fun handleShutdownIntent(intent: Intent?) {
+        if (intent?.action == ACTION_SHUTDOWN_SERVICE) {
+            LocationService.stop(this)
+            finish()
+        }
     }
 
     private fun startLocationService() {
@@ -109,6 +134,7 @@ fun MainView(app: App, mapView: MapView) {
     val scaffoldState = rememberScaffoldState()
 
     Scaffold(scaffoldState = scaffoldState,
+        drawerGesturesEnabled = scaffoldState.drawerState.isOpen,
         drawerContent = {
             SettingsScreen(
                 logSource = app.recentLog,
@@ -120,6 +146,17 @@ fun MainView(app: App, mapView: MapView) {
         }) {
 
         AndroidView(modifier = Modifier.fillMaxSize(), factory = { context -> mapView })
+
+        Box(modifier = Modifier.padding(16.dp)) {
+            OutlinedButton(
+                onClick = {
+                    coroutineScope.launch {
+                        scaffoldState.drawerState.open()
+                    }
+                }) {
+                Icon(Icons.Default.Settings, contentDescription = "settings btn")
+            }
+        }
     }
 }
 
