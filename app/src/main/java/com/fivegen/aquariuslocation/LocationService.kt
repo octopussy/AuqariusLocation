@@ -4,7 +4,6 @@ import android.annotation.SuppressLint
 import android.app.*
 import android.content.Context
 import android.content.Intent
-import android.content.Intent.ACTION_SHUTDOWN
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.location.Location
@@ -12,6 +11,8 @@ import android.os.Build
 import android.os.Bundle
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
+import com.google.android.gms.location.LocationRequest
+import com.google.android.gms.location.LocationRequest.PRIORITY_HIGH_ACCURACY
 import com.yayandroid.locationmanager.LocationManager
 import com.yayandroid.locationmanager.configuration.DefaultProviderConfiguration
 import com.yayandroid.locationmanager.configuration.GooglePlayServicesConfiguration
@@ -142,7 +143,12 @@ class LocationService : Service() {
             .keepTracking(true)
             .useGooglePlayServices(
                 GooglePlayServicesConfiguration.Builder()
-                    //.locationRequest(YOUR_CUSTOM_LOCATION_REQUEST_OBJECT)
+                    .locationRequest(LocationRequest.create()
+                        .setInterval(5000)
+                        .setExpirationTime(5000)
+                        .setSmallestDisplacement(15.0f)
+                        .setPriority(PRIORITY_HIGH_ACCURACY)
+                    )
                     .fallbackToDefault(true)
                     .askForGooglePlayServices(false)
                     .askForSettingsApi(true)

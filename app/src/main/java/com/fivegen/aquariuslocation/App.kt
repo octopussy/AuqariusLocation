@@ -65,6 +65,12 @@ class App : Application() {
         }
     }
 
+    fun clearLocationHistory() {
+        scope.launch {
+            locationDao.deleteAll()
+        }
+    }
+
     fun logD(msg: String) {
         Log.d(TAG, msg)
         appendLog(msg)

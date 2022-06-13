@@ -12,8 +12,8 @@ class AppStorage(context: Context) {
 
     var acceptableTimePeriod by LongPref(prefs, 5000L)
     var requiredTimeInterval by LongPref(prefs, 5000L)
-    var requiredDistanceInterval by LongPref(prefs, 0L)
-    var acceptableAccuracy by FloatPref(prefs, 1f)
+    var requiredDistanceInterval by LongPref(prefs, 5L)
+    var acceptableAccuracy by FloatPref(prefs, 10f)
     var setWaitPeriodGPS by LongPref(prefs,20 * 1000L)
     var setWaitPeriodNetwork by LongPref(prefs,20 * 1000L)
 }

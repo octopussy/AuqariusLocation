@@ -1,6 +1,5 @@
 package com.fivegen.aquariuslocation
 
-import android.location.Location
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
@@ -33,7 +32,10 @@ class MapController(
     }
 
     private fun updateMarkers(list: List<AppLocation>) {
-        if (list.isEmpty()) return
+        if (list.isEmpty()) {
+            pathOverlay.setPoints(emptyList())
+            return
+        }
         if (firstUpdate) {
             firstUpdate = false
             mapView.controller.animateTo(list.last().toGeo(), 19.0, 10)

@@ -138,6 +138,9 @@ fun MainView(app: App, mapView: MapView) {
         drawerContent = {
             SettingsScreen(
                 logSource = app.recentLog,
+                onClearLocationsClick = {
+                    app.clearLocationHistory()
+                },
                 onClose = {
                     coroutineScope.launch {
                         scaffoldState.drawerState.close()
@@ -161,7 +164,7 @@ fun MainView(app: App, mapView: MapView) {
 }
 
 @Composable
-fun SettingsScreen(onClose: () -> Unit, logSource: Flow<LogMessage>) {
+fun SettingsScreen(onClose: () -> Unit, onClearLocationsClick: () -> Unit, logSource: Flow<LogMessage>) {
     var log by remember { mutableStateOf("") }
     val storage = App.storage
 
@@ -206,6 +209,12 @@ fun SettingsScreen(onClose: () -> Unit, logSource: Flow<LogMessage>) {
                 onClose()
             }) {
                 Text(text = "Apply")
+            }
+            Spacer(modifier = Modifier.weight(1.0f))
+            OutlinedButton(onClick = onClearLocationsClick, colors = ButtonDefaults.outlinedButtonColors(
+                contentColor = Color.Red
+            )) {
+                Text(text = "Clear locations")
             }
         }
 
